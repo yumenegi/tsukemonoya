@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wavetable Synthesizer Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="synth-container">
+        <!-- <header class="synth-header">
+            <h1>TAKUAN CONTROL PANEL</h1>
+            <div class="status-indicator" id="status-led"></div>
+        </header> -->
+
+        <div class="status-indicator" id="status-led"></div>
+
+        <div class="synth-grid">
+            <!-- WAVETABLES COLUMN -->
+            <div class="wavetables-column">
+                <!-- WAVETABLE SECTION -->
+                <section class="panel wavetable-panel">
+                    <div class="panel-header wavetable-header">
+                        <span>OP 1</span>
+                        <select id="wt_wave_select" class="wave-select"></select>
+                    </div>
+
+                    <canvas id="wavetable-viewer" width="480" height="120"></canvas>
+
+                    <div class="controls-grid">
+                        <div class="control-group">
+                            <webaudio-knob id="wt_pos" src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100"
+                                min="0" max="127" step="1" value="0" diameter="50"></webaudio-knob>
+                            <label>WT POS</label>
+                        </div>
+                        <div class="control-group">
+                            <webaudio-knob id="wt_env_select" src="../webaudio-controls/knobs/LittlePhatty.png"
+                                sprites="100" min="0" max="7" step="1" value="0" diameter="50"></webaudio-knob>
+                            <label>ENV SEL</label>
+                        </div>
+
+                        <div class="control-group">
+                            <webaudio-switch id="wt_lfo_on" src="../webaudio-controls/knobs/switch_toggle.png"
+                                type="toggle" value="0" width="30" height="30"></webaudio-switch>
+                            <label class="small-text">ON/OFF</label>
+                            <webaudio-knob id="wt_lfo_pitch" src="../webaudio-controls/knobs/LittlePhatty.png"
+                                sprites="100" min="0" max="3" step="1" value="0" diameter="50"></webaudio-knob>
+                            <label>PITCH LFO</label>
+                            <webaudio-switch id="wt_pitch_mode" src="../webaudio-controls/knobs/switch_toggle.png"
+                                type="toggle" value="0" width="30" height="30"></webaudio-switch>
+                            <label class="small-text">CONT/TRIG</label>
+                        </div>
+
+                        <div class="control-group">
+                            <webaudio-switch id="wt_lfo_pos_on" src="../webaudio-controls/knobs/switch_toggle.png"
+                                type="toggle" value="0" width="30" height="30"></webaudio-switch>
+                            <label class="small-text">ON/OFF</label>
+                            <webaudio-knob id="wt_lfo_pos" src="../webaudio-controls/knobs/LittlePhatty.png"
+                                sprites="100" min="0" max="3" step="1" value="0" diameter="50"></webaudio-knob>
+                            <label>POS LFO</label>
+                            <webaudio-switch id="wt_pos_mode" src="../webaudio-controls/knobs/switch_toggle.png"
+                                type="toggle" value="0" width="30" height="30"></webaudio-switch>
+                            <label class="small-text">CONT/TRIG</label>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- WAVETABLE SECTION 2 -->
+                <section class="panel wavetable-panel">
+                    <div class="panel-header wavetable-header">
+                        <span>OP 2</span>
+                        <select id="wt2_wave_select" class="wave-select"></select>
+                    </div>
+
+                    <canvas id="wavetable2-viewer" width="480" height="120"></canvas>
+
+                    <div class="controls-grid" style="grid-template-columns: repeat(2, 1fr);">
+                        <div class="control-group">
+                            <webaudio-knob id="wt2_env_select" src="../webaudio-controls/knobs/LittlePhatty.png"
+                                sprites="100" min="0" max="7" step="1" value="0" diameter="50"></webaudio-knob>
+                            <label>ENV SEL</label>
+                        </div>
+                        <div class="control-group">
+                            <webaudio-switch id="wt2_lfo_on" src="../webaudio-controls/knobs/switch_toggle.png"
+                                type="toggle" value="0" width="30" height="30"></webaudio-switch>
+                            <label class="small-text">ON/OFF</label>
+                            <webaudio-knob id="wt2_lfo_pitch" src="../webaudio-controls/knobs/LittlePhatty.png"
+                                sprites="100" min="0" max="3" step="1" value="0" diameter="50"></webaudio-knob>
+                            <label>PITCH LFO</label>
+                            <webaudio-switch id="wt2_pitch_mode" src="../webaudio-controls/knobs/switch_toggle.png"
+                                type="toggle" value="0" width="30" height="30"></webaudio-switch>
+                            <label class="small-text">CONT/TRIG</label>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ENVELOPES AND LFO COLUMN -->
+            <div class="envelopes-and-lfo-column">
+                <!-- ENVELOPES SECTION -->
+                <section class="panel envelopes-panel">
+                    <div class="panel-header">ENVELOPES (ADSR)</div>
+                    <div class="envelopes-grid">
+                        <!-- ENVELOPE 1 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 1</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_1_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_1_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_1_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_1_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ENVELOPE 2 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 2</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_2_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_2_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_2_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_2_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ENVELOPE 3 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 3</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_3_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_3_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_3_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_3_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ENVELOPE 4 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 4</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_4_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_4_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_4_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_4_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ENVELOPE 5 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 5</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_5_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_5_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_5_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_5_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ENVELOPE 6 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 6</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_6_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_6_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_6_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_6_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ENVELOPE 7 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 7</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_7_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_7_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_7_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_7_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ENVELOPE 8 -->
+                        <div class="env-group">
+                            <div class="env-title">ENV 8</div>
+                            <div class="sliders-container">
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_8_a" direction="vert"
+                                        min="0" max="1000" step="1" value="0" height="100" width="15"></webaudio-slider>
+                                    <label>A</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_8_d" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>D</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_8_s" direction="vert"
+                                        min="0" max="1.00" step="0.01" value="1.00" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>S</label>
+                                </div>
+                                <div class="slider-wrapper">
+                                    <webaudio-slider knobsrc="../webaudio-controls/knobs/vsliderknob.png"
+                                        src="../webaudio-controls/knobs/vsliderbody.png" id="env_8_r" direction="vert"
+                                        min="0" max="1000" step="1" value="500" height="100"
+                                        width="15"></webaudio-slider>
+                                    <label>R</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LOWER ROW -->
+                <div class="lower-row-container">
+                    <!-- LFO SECTION -->
+                    <section class="panel lfo-panel">
+                        <div class="panel-header">LOW FREQUENCY OSCILLATORS</div>
+                        <div class="lfo-grid">
+                            <!-- LFO 1 -->
+                            <div class="lfo-group">
+                                <div class="lfo-title">LFO 1</div>
+                                <div class="lfo-controls">
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_1_speed"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="127" step="1" value="64" diameter="40"></webaudio-knob>
+                                        <label>SPEED</label>
+                                    </div>
+                                    <div class="lfo-display">
+                                        <canvas id="lfo_1_canvas" width="200" height="100"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- LFO 2 -->
+                            <div class="lfo-group">
+                                <div class="lfo-title">LFO 2</div>
+                                <div class="lfo-controls">
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_2_speed"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="127" step="1" value="64" diameter="40"></webaudio-knob>
+                                        <label>SPEED</label>
+                                    </div>
+                                    <div class="lfo-display">
+                                        <canvas id="lfo_2_canvas" width="200" height="100"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- LFO 3 -->
+                            <div class="lfo-group">
+                                <div class="lfo-title">LFO 3</div>
+                                <div class="lfo-controls">
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_3_speed"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="127" step="1" value="64" diameter="40"></webaudio-knob>
+                                        <label>SPEED</label>
+                                    </div>
+                                    <div class="lfo-display">
+                                        <canvas id="lfo_3_canvas" width="200" height="100"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- LFO 4 -->
+                            <div class="lfo-group">
+                                <div class="lfo-title">LFO 4</div>
+                                <div class="lfo-controls">
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_4_speed"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="127" step="1" value="64" diameter="40"></webaudio-knob>
+                                        <label>SPEED</label>
+                                    </div>
+                                    <div class="lfo-display">
+                                        <canvas id="lfo_4_canvas" width="200" height="100"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- LOGO SECTION -->
+                    <section class="panel logo-panel">
+                        <img src="{{ url_for('static', filename='img/takuan.svg') }}" alt="Takuan Logo"
+                            class="product-logo">
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Make sure to load webaudio-controls.js -->
+    <script src="/webaudio-controls/webaudio-controls.js"></script>
+    <!-- Load our custom logic -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>
