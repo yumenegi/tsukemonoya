@@ -75,7 +75,9 @@ document.addEventListener("DOMContentLoaded", () => {
             // Provide a tiny LED status indicator for toggle switches
             const ledDiv = document.createElement('div');
             ledDiv.className = 'toggle-led';
-            if (parseInt(control.value) === 1) {
+            // INVERTED LOGIC: the hardware knob sprite renders "UP" on 0 and "DOWN" on 1. 
+            // We want "UP" to mean "ON" (LED active).
+            if (parseInt(control.value) === 0) {
                 ledDiv.classList.add('active');
             }
             
@@ -83,7 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
             control.insertAdjacentElement('beforebegin', ledDiv);
             
             control.addEventListener('change', (e) => {
-                if (parseInt(e.target.value) === 1) {
+                if (parseInt(e.target.value) === 0) {
                     ledDiv.classList.add('active');
                 } else {
                     ledDiv.classList.remove('active');

@@ -18,6 +18,13 @@ def control():
     param = data.get('param')
     value = data.get('value')
     
+    # IMPORTANT NOTE ON SWITCHES: 
+    # To maintain UI visual logic avoiding broken CSS sprite shadows, all 
+    # `webaudio-switch` toggle elements are logically inverted. 
+    # A value of `0` means the switch points UP (which the UI treats as ON). 
+    # A value of `1` means the switch points DOWN (treated as OFF). 
+    # Make sure to handle this 0=ON / 1=OFF inversion when mapping these to your hardware!
+    
     print(f"Synth Control Updated | Param: {param} | Value: {value}")
     
     return jsonify({"status": "success", "param": param, "value": value})

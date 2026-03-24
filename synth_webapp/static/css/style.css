@@ -135,6 +135,7 @@ body {
     outline: none;
     cursor: pointer;
 }
+
 .wave-select option {
     background: #0f1013;
     color: var(--text-primary);
@@ -314,6 +315,7 @@ body {
     transition: all 0.2s ease;
     margin: 2px 0;
 }
+
 .toggle-led.active {
     background-color: var(--accent-orange);
     box-shadow: 0 0 6px var(--accent-orange), 0 0 10px var(--accent-orange-glow);
