@@ -44,8 +44,8 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 
 engine = None       # type: Engine
 state = SynthState()
-wt1_alloc = VoiceAllocator(start_index=0, voice_count=16)
-wt2_alloc = VoiceAllocator(start_index=8, voice_count=8)
+wt1_alloc = VoiceAllocator(start_index=0, voice_count=256)
+wt2_alloc = VoiceAllocator(start_index=128, voice_count=128)
 bram0 = None        # BRAM for WT1 (128 frames)
 bram1 = None        # BRAM for WT2 (1 frame)
 
@@ -181,21 +181,35 @@ def init_hardware():
 # ---------------------------------------------------------------------------
 # MIDI thread
 # ---------------------------------------------------------------------------
+def _play_test_scale():
+    """Fallback: loop a C major scale when no MIDI device is available."""
+    # C4=60, D4=62, E4=64, F4=65, G4=67, A4=69, B4=71, C5=72
+    c_major = [60, 62, 64, 65, 67, 69, 71, 72]
+    print("TEST MODE: Playing C major scale in a loop")
+    while True:
+        for note in c_major:
+            _handle_note_on(note)
+            time.sleep(0.4)
+            _handle_note_off(note)
+            time.sleep(0.1)
+        time.sleep(0.5)
+
+
 def midi_thread_func():
     """Background thread listening for MIDI note on/off events."""
     try:
         import rtmidi
     except ImportError:
-        print("ERROR: python-rtmidi not installed — MIDI input disabled")
+        print("WARNING: python-rtmidi not installed — falling back to test scale")
+        _play_test_scale()
         return
 
     midi_in = rtmidi.MidiIn()
     ports = midi_in.get_ports()
     if not ports:
-        print("WARNING: No MIDI input ports found. Waiting for connection...")
-        while not midi_in.get_ports():
-            time.sleep(2)
-        ports = midi_in.get_ports()
+        print("WARNING: No MIDI input ports found — falling back to test scale")
+        _play_test_scale()
+        return
 
     midi_in.open_port(0)
     print(f"MIDI: Listening on '{ports[0]}'")
@@ -456,26 +470,26 @@ def _toggle_wt2(enabled):
         state.wt2_on = enabled
 
     if enabled and not was_on:
-        # Switch to dual mode: WT1 gets 8 voices (0-7), WT2 gets 8 voices (8-15)
+        # Switch to dual mode: WT1 gets 128 voices (0-127), WT2 gets 128 voices (128-255)
         # Release all current voices first
         for hw_idx in wt1_alloc.release_all():
             engine.key_off(hw_idx)
         for hw_idx in wt2_alloc.release_all():
             engine.key_off(hw_idx)
 
-        wt1_alloc.resize(start_index=0, voice_count=8)
-        wt2_alloc.resize(start_index=8, voice_count=8)
-        print("MODE: Dual channel (WT1: 8 voices, WT2: 8 voices)")
+        wt1_alloc.resize(start_index=0, voice_count=128)
+        wt2_alloc.resize(start_index=128, voice_count=128)
+        print("MODE: Dual channel (WT1: 128 voices, WT2: 128 voices)")
 
     elif not enabled and was_on:
-        # Switch to single mode: WT1 gets all 16 voices
+        # Switch to single mode: WT1 gets all 256 voices
         for hw_idx in wt1_alloc.release_all():
             engine.key_off(hw_idx)
         for hw_idx in wt2_alloc.release_all():
             engine.key_off(hw_idx)
 
-        wt1_alloc.resize(start_index=0, voice_count=16)
-        print("MODE: Single channel (WT1: 16 voices)")
+        wt1_alloc.resize(start_index=0, voice_count=256)
+        print("MODE: Single channel (WT1: 256 voices)")
 
 
 def _load_wt_file(filename, is_wt2=False):

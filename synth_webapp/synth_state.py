@@ -144,8 +144,8 @@ class SynthState:
         """Return (wt1_voices, wt2_voices)."""
         with self.lock:
             if self.wt2_on:
-                return 8, 8
-            return 16, 0
+                return 128, 128
+            return 256, 0
 
     # -------------------------------------------------------------------------
     # Update methods (called from /api/control)
