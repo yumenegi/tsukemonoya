@@ -81,6 +81,9 @@
 
                     <div class="controls-grid" style="grid-template-columns: repeat(2, 1fr);">
                         <div class="control-group">
+                            <webaudio-switch id="wt2_on" src="../webaudio-controls/knobs/switch_toggle.png"
+                                type="toggle" value="1" width="30" height="30"></webaudio-switch>
+                            <label class="small-text">OP 2 ON/OFF</label>
                             <webaudio-knob id="wt2_env_select" src="../webaudio-controls/knobs/LittlePhatty.png"
                                 sprites="100" min="0" max="7" step="1" value="0" diameter="50"></webaudio-knob>
                             <label>ENV SEL</label>
@@ -381,7 +384,7 @@
                         <div class="lfo-grid">
                             <!-- LFO 1 -->
                             <div class="lfo-group">
-                                <div class="lfo-title">LFO 1</div>
+                                <div class="lfo-title">LFO 1 <select id="lfo_1_shape" class="wave-select"></select></div>
                                 <div class="lfo-controls">
                                     <div class="control-group">
                                         <webaudio-knob id="lfo_1_speed"
@@ -392,11 +395,17 @@
                                     <div class="lfo-display">
                                         <canvas id="lfo_1_canvas" width="200" height="100"></canvas>
                                     </div>
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_1_amp"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="255" step="1" value="255" diameter="40"></webaudio-knob>
+                                        <label>AMP</label>
+                                    </div>
                                 </div>
                             </div>
                             <!-- LFO 2 -->
                             <div class="lfo-group">
-                                <div class="lfo-title">LFO 2</div>
+                                <div class="lfo-title">LFO 2 <select id="lfo_2_shape" class="wave-select"></select></div>
                                 <div class="lfo-controls">
                                     <div class="control-group">
                                         <webaudio-knob id="lfo_2_speed"
@@ -407,11 +416,17 @@
                                     <div class="lfo-display">
                                         <canvas id="lfo_2_canvas" width="200" height="100"></canvas>
                                     </div>
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_2_amp"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="255" step="1" value="255" diameter="40"></webaudio-knob>
+                                        <label>AMP</label>
+                                    </div>
                                 </div>
                             </div>
                             <!-- LFO 3 -->
                             <div class="lfo-group">
-                                <div class="lfo-title">LFO 3</div>
+                                <div class="lfo-title">LFO 3 <select id="lfo_3_shape" class="wave-select"></select></div>
                                 <div class="lfo-controls">
                                     <div class="control-group">
                                         <webaudio-knob id="lfo_3_speed"
@@ -422,11 +437,17 @@
                                     <div class="lfo-display">
                                         <canvas id="lfo_3_canvas" width="200" height="100"></canvas>
                                     </div>
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_3_amp"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="255" step="1" value="255" diameter="40"></webaudio-knob>
+                                        <label>AMP</label>
+                                    </div>
                                 </div>
                             </div>
                             <!-- LFO 4 -->
                             <div class="lfo-group">
-                                <div class="lfo-title">LFO 4</div>
+                                <div class="lfo-title">LFO 4 <select id="lfo_4_shape" class="wave-select"></select></div>
                                 <div class="lfo-controls">
                                     <div class="control-group">
                                         <webaudio-knob id="lfo_4_speed"
@@ -436,6 +457,12 @@
                                     </div>
                                     <div class="lfo-display">
                                         <canvas id="lfo_4_canvas" width="200" height="100"></canvas>
+                                    </div>
+                                    <div class="control-group">
+                                        <webaudio-knob id="lfo_4_amp"
+                                            src="../webaudio-controls/knobs/LittlePhatty.png" sprites="100" min="0"
+                                            max="255" step="1" value="255" diameter="40"></webaudio-knob>
+                                        <label>AMP</label>
                                     </div>
                                 </div>
                             </div>

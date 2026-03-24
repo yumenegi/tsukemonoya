@@ -136,11 +136,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 2. Setup LFO Visualization
     const lfos = [
-        { id: 'lfo_1_canvas', speedKnobId: 'lfo_1_speed', phase: 0 },
-        { id: 'lfo_2_canvas', speedKnobId: 'lfo_2_speed', phase: 0 },
-        { id: 'lfo_3_canvas', speedKnobId: 'lfo_3_speed', phase: 0 },
-        { id: 'lfo_4_canvas', speedKnobId: 'lfo_4_speed', phase: 0 }
+        { id: 'lfo_1_canvas', speedKnobId: 'lfo_1_speed', shapeId: 'lfo_1_shape', ampId: 'lfo_1_amp', phase: 0 },
+        { id: 'lfo_2_canvas', speedKnobId: 'lfo_2_speed', shapeId: 'lfo_2_shape', ampId: 'lfo_2_amp', phase: 0 },
+        { id: 'lfo_3_canvas', speedKnobId: 'lfo_3_speed', shapeId: 'lfo_3_shape', ampId: 'lfo_3_amp', phase: 0 },
+        { id: 'lfo_4_canvas', speedKnobId: 'lfo_4_speed', shapeId: 'lfo_4_shape', ampId: 'lfo_4_amp', phase: 0 }
     ];
+
+    // Shape math: t is normalized 0..1 within one cycle, returns -1..1
+    function lfoShapeValue(shape, t) {
+        t = t % 1.0;
+        if (t < 0) t += 1.0;
+        switch (shape) {
+            case 'sine':
+                return Math.sin(t * Math.PI * 2) * 0.5 + 0.5; // 0..1 unsigned
+            case 'sine_bi':
+                return Math.sin(t * Math.PI * 2); // -1..1 signed
+            case 'triangle':
+                return t < 0.5 ? (t * 4 - 1) : (3 - t * 4); // -1..1 triangle
+            case 'ramp_up':
+                return t * 2 - 1; // -1..1
+            case 'ramp_down':
+                return 1 - t * 2; // 1..-1
+            case 'square':
+                return t < 0.5 ? 1 : -1;
+            case 'flat':
+            default:
+                return 0;
+        }
+    }
 
     function drawLFO() {
         requestAnimationFrame(drawLFO);
@@ -153,17 +176,20 @@ document.addEventListener("DOMContentLoaded", () => {
             const height = canvas.height;
 
             const speedKnob = document.getElementById(lfo.speedKnobId);
-            // Convert speed (0-127) to a usable animation frequency increment
             const speedVal = speedKnob ? parseFloat(speedKnob.value) : 64;
             const freq = (speedVal / 127) * 0.3 + 0.01;
 
             lfo.phase += freq;
 
+            // Read selected shape
+            const shapeDropdown = document.getElementById(lfo.shapeId);
+            const shape = shapeDropdown ? shapeDropdown.value : 'sine';
+
             // Clear background
             ctx.fillStyle = '#0a0a0c';
             ctx.fillRect(0, 0, width, height);
 
-            // Draw grid or center line (optional cosmetic detail)
+            // Center line
             ctx.beginPath();
             ctx.strokeStyle = '#222';
             ctx.lineWidth = 1;
@@ -178,12 +204,13 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'rgba(79, 167, 255, 0.8)';
 
+            const cycles = 1.5; // show 1.5 cycles on canvas
+            const ampKnob = document.getElementById(lfo.ampId);
+            const ampVal = ampKnob ? parseFloat(ampKnob.value) / 255.0 : 1.0;
             for (let x = 0; x < width; x++) {
-                // scale x to a phase offset to show the wave shape
-                // showing about 1.5 cycles on the canvas purely for visual aesthetic
-                const phaseOffset = (x / width) * Math.PI * 3;
-                const waveScale = speedVal > 0 ? (height / 2.5) : 0;
-                const y = Math.sin(lfo.phase + phaseOffset) * waveScale + (height / 2);
+                const t = (x / width) * cycles + (lfo.phase / (Math.PI * 2));
+                const waveScale = speedVal > 0 ? (height / 2.5) * ampVal : 0;
+                const y = lfoShapeValue(shape, t) * waveScale + (height / 2);
                 if (x === 0) {
                     ctx.moveTo(x, y);
                 } else {
@@ -191,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
             ctx.stroke();
-            ctx.shadowBlur = 0; // reset for next drawing operations
+            ctx.shadowBlur = 0;
         });
     }
 
@@ -370,4 +397,44 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     initWavetables();
+
+    // 4. Setup LFO Shape Dropdowns
+    async function initLfoShapes() {
+        try {
+            const response = await fetch('/api/lfo_shapes');
+            const shapes = await response.json();
+            if (!shapes || shapes.length === 0) return;
+
+            const defaults = ['flat', 'sine_bi', 'triangle', 'ramp_down'];
+
+            for (let i = 1; i <= 4; i++) {
+                const dropdown = document.getElementById(`lfo_${i}_shape`);
+                if (!dropdown) continue;
+
+                shapes.forEach(shape => {
+                    const opt = document.createElement('option');
+                    opt.value = shape;
+                    opt.textContent = shape.replace(/_/g, ' ');
+                    dropdown.appendChild(opt);
+                });
+
+                // Set default
+                if (defaults[i - 1] && shapes.includes(defaults[i - 1])) {
+                    dropdown.value = defaults[i - 1];
+                }
+
+                dropdown.addEventListener('change', (e) => {
+                    fetch('/api/control', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ param: `lfo_${i}_shape`, value: e.target.value })
+                    });
+                });
+            }
+        } catch (e) {
+            console.error("Failed to init LFO shapes:", e);
+        }
+    }
+
+    initLfoShapes();
 });
