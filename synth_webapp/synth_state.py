@@ -51,10 +51,11 @@ def _sustain_float_to_hw(s_float):
     """Convert sustain 0.0-1.0 to 16-bit hardware value."""
     return int(max(0.0, min(1.0, s_float)) * 0xFFFF)
 
-def _lfo_speed_to_stride(speed_0_127):
-    """Map UI speed 0-127 to LFO phase accumulator stride."""
-    # 0 → ~0.1 Hz, 127 → ~20 Hz
-    freq = 0.1 + (speed_0_127 / 127.0) * 19.9
+def _lfo_speed_to_stride(freq_hz):
+    """Convert LFO frequency in Hz to phase accumulator stride."""
+    freq = max(0.0, float(freq_hz))
+    if freq == 0.0:
+        return 0
     return int((freq * 4294967296) / SAMPLING_RATE)
 
 
@@ -76,7 +77,7 @@ class SynthState:
             })
 
         # --- LFOs (4 LFOs) ---
-        self.lfo_speeds = [64, 64, 64, 64]        # 0-127
+        self.lfo_speeds = [5.0, 5.0, 5.0, 5.0]    # Hz
         self.lfo_amplitudes = [255, 255, 255, 255]  # 0-255
         self.lfo_shapes = ['flat', 'sine_bi', 'triangle', 'ramp_down']  # shape names
 
@@ -159,7 +160,7 @@ class SynthState:
 
     def update_lfo_speed(self, lfo_idx, value):
         with self.lock:
-            self.lfo_speeds[lfo_idx] = int(float(value))
+            self.lfo_speeds[lfo_idx] = float(value)
 
     def update_lfo_shape(self, lfo_idx, shape_name):
         with self.lock:

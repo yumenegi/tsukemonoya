@@ -18,11 +18,18 @@ document.addEventListener("DOMContentLoaded", () => {
         // Exclude switch for value display
         let valDisplay = null;
         const isSwitch = control.tagName.toLowerCase() === 'webaudio-switch';
+        const formatVal = (v) => {
+            if (control.id.match(/^env_\d+_[adr]$/)) return v + 'ms';
+            if (control.id.match(/^env_\d+_s$/)) return parseFloat(v).toFixed(2);
+            if (control.id.match(/^lfo_\d+_speed$/)) return parseFloat(v).toFixed(2) + 'Hz';
+            return v;
+        };
+
         if (!isSwitch) {
             valDisplay = document.createElement('input');
             valDisplay.type = 'text';
             valDisplay.className = 'value-display';
-            
+
             valDisplay.style.fontSize = '10px';
             valDisplay.style.color = '#FF7D34';
             valDisplay.style.marginTop = '2px';
@@ -34,17 +41,11 @@ document.addEventListener("DOMContentLoaded", () => {
             valDisplay.style.textAlign = 'center';
             valDisplay.style.width = '36px';
 
-            const formatVal = (v) => {
-                if (control.id.match(/^env_\d+_[adr]$/)) return v + 'ms';
-                if (control.id.match(/^env_\d+_s$/)) return parseFloat(v).toFixed(2);
-                return v;
-            };
-
             valDisplay.value = formatVal(control.value);
 
             // Editable Input Handling
             valDisplay.addEventListener('focus', () => {
-                valDisplay.value = control.value;
+                valDisplay.value = parseFloat(control.value).toFixed(2);
                 valDisplay.select();
             });
 
@@ -55,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     let max = parseFloat(control.getAttribute('max')) || 127;
                     if (parsed < min) parsed = min;
                     if (parsed > max) parsed = max;
-                    
+
                     control.value = parsed;
                     // Force the component to update and trigger our network post payload via simulated input event
                     control.dispatchEvent(new Event('input', { bubbles: true }));
@@ -80,10 +81,10 @@ document.addEventListener("DOMContentLoaded", () => {
             if (parseInt(control.value) === 0) {
                 ledDiv.classList.add('active');
             }
-            
+
             // Insert before the switch element so it sits snug under its Top Label
             control.insertAdjacentElement('beforebegin', ledDiv);
-            
+
             control.addEventListener('change', (e) => {
                 if (parseInt(e.target.value) === 0) {
                     ledDiv.classList.add('active');
@@ -98,13 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const value = e.target.value;
 
             if (valDisplay && document.activeElement !== valDisplay) {
-                let displayVal = value;
-                if (param.match(/^env_\d+_[adr]$/)) {
-                    displayVal = value + 'ms';
-                } else if (param.match(/^env_\d+_s$/)) {
-                    displayVal = parseFloat(value).toFixed(2);
-                }
-                valDisplay.value = displayVal;
+                valDisplay.value = formatVal(value);
             }
 
             // Blink LED to show activity
@@ -176,8 +171,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const height = canvas.height;
 
             const speedKnob = document.getElementById(lfo.speedKnobId);
-            const speedVal = speedKnob ? parseFloat(speedKnob.value) : 64;
-            const freq = (speedVal / 127) * 0.3 + 0.01;
+            const speedVal = speedKnob ? parseFloat(speedKnob.value) : 5.0;
+            const freq = speedVal * 0.015;
 
             lfo.phase += freq;
 
@@ -229,40 +224,40 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const listResponse = await fetch('/api/wavetables');
             const files = await listResponse.json();
-            
+
             if (!files || files.length === 0) return;
-            
+
             const dropdown1 = document.getElementById('wt_wave_select');
             const dropdown2 = document.getElementById('wt2_wave_select');
-            
+
             files.forEach(file => {
                 const opt1 = document.createElement('option');
                 opt1.value = file;
                 opt1.textContent = file.replace('.wav', '');
                 if (dropdown1) dropdown1.appendChild(opt1);
-                
+
                 const opt2 = document.createElement('option');
                 opt2.value = file;
                 opt2.textContent = file.replace('.wav', '');
                 if (dropdown2) dropdown2.appendChild(opt2);
             });
-            
+
             if (dropdown1) dropdown1.value = files[0];
             if (dropdown2) dropdown2.value = files[0];
-            
+
             if (dropdown1) dropdown1.addEventListener('change', (e) => {
                 loadWavetableFile(e.target.value, 'wavetable-viewer', 'wt_pos');
-                fetch('/api/control', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({param: 'wt_wave_select', value: e.target.value}) });
+                fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ param: 'wt_wave_select', value: e.target.value }) });
             });
-            
+
             if (dropdown2) dropdown2.addEventListener('change', (e) => {
                 loadWavetableFile(e.target.value, 'wavetable2-viewer', null);
-                fetch('/api/control', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({param: 'wt2_wave_select', value: e.target.value}) });
+                fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ param: 'wt2_wave_select', value: e.target.value }) });
             });
-            
+
             if (dropdown1) await loadWavetableFile(dropdown1.value, 'wavetable-viewer', 'wt_pos');
             if (dropdown2) await loadWavetableFile(dropdown2.value, 'wavetable2-viewer', null);
-        } catch(e) {
+        } catch (e) {
             console.error("Failed to init wavetables:", e);
         }
     }
@@ -314,7 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             wtBuffers[canvasId] = newBuffer;
-            
+
             let pos = 0;
             if (posControlId) {
                 const ctrl = document.getElementById(posControlId);
@@ -345,8 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
             frameIdx = position;
         } else {
             // Generic proportional fallback
-            const mappedPos = position / 127.0;
-            frameIdx = Math.floor(mappedPos * (totalFrames - 1));
+            frameIdx = position;
         }
 
         frameIdx = Math.max(0, Math.min(totalFrames - 1, frameIdx));
