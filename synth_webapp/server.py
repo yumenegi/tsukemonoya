@@ -198,39 +198,95 @@ def _play_test_scale():
         time.sleep(0.5)
 
 
+def _find_usb_midi_device():
+    """
+    Scan all connected USB devices for a USB MIDI Streaming interface.
+    Returns (device, endpoint) or (None, None).
+
+    USB MIDI devices expose an interface with:
+      bInterfaceClass    = 0x01  (Audio)
+      bInterfaceSubClass = 0x03  (MIDI Streaming)
+    Data arrives as 4-byte USB MIDI Event Packets:
+      Byte 0: Cable Number (upper nibble) | Code Index Number / CIN (lower nibble)
+      Byte 1: MIDI Status byte  (0x8n note-off, 0x9n note-on, etc.)
+      Byte 2: MIDI data byte 1  (note number)
+      Byte 3: MIDI data byte 2  (velocity)
+    """
+    import usb.core
+    import usb.util
+
+    for dev in usb.core.find(find_all=True):
+        try:
+            for cfg in dev:
+                for intf in cfg:
+                    if (intf.bInterfaceClass == 0x01 and
+                            intf.bInterfaceSubClass == 0x03):
+                        # Found a MIDI Streaming interface — locate an IN endpoint
+                        for ep in intf:
+                            ep_type = usb.util.endpoint_type(ep.bmAttributes)
+                            ep_dir  = usb.util.endpoint_direction(ep.bEndpointAddress)
+                            if (ep_dir == usb.util.ENDPOINT_IN and
+                                    ep_type in (usb.util.ENDPOINT_TYPE_BULK,
+                                                usb.util.ENDPOINT_TYPE_INTR)):
+                                return dev, ep
+        except Exception:
+            pass  # Skip devices we cannot interrogate
+    return None, None
+
+
 def midi_thread_func():
-    """Background thread listening for MIDI note on/off events."""
+    """Background thread listening for MIDI note on/off events via USB (pyusb)."""
     try:
-        import rtmidi
+        import usb.core
+        import usb.util
     except ImportError:
-        print("WARNING: python-rtmidi not installed — falling back to test scale")
+        print("WARNING: pyusb not installed — falling back to test scale")
         _play_test_scale()
         return
 
-    midi_in = rtmidi.MidiIn()
-    ports = midi_in.get_ports()
-    if not ports:
-        print("WARNING: No MIDI input ports found — falling back to test scale")
+    dev, ep = _find_usb_midi_device()
+    if dev is None:
+        print("WARNING: No USB MIDI device found — falling back to test scale")
         _play_test_scale()
         return
 
-    midi_in.open_port(0)
-    print(f"MIDI: Listening on '{ports[0]}'")
+    # Detach any kernel driver so we can claim the interface
+    try:
+        if dev.is_kernel_driver_active(ep.bEndpointAddress >> 4):
+            dev.detach_kernel_driver(ep.bEndpointAddress >> 4)
+    except Exception:
+        pass
+
+    try:
+        dev.set_configuration()
+    except Exception:
+        pass
+
+    print(f"MIDI (USB): Connected — {dev.manufacturer or 'Unknown'} {dev.product or 'USB MIDI'} "
+          f"(EP 0x{ep.bEndpointAddress:02X}, packet size {ep.wMaxPacketSize})")
 
     while True:
-        msg = midi_in.get_message()
-        if msg:
-            message, _delta = msg
-            status = message[0] & 0xF0
-            note = message[1]
-            velocity = message[2] if len(message) > 2 else 0
+        try:
+            # Read one or more 4-byte USB MIDI Event Packets
+            data = dev.read(ep.bEndpointAddress, ep.wMaxPacketSize, timeout=50)
+        except Exception:
+            # Timeout or transient error — just loop
+            continue
 
-            if status == 0x90 and velocity > 0:
+        # Each USB MIDI packet is exactly 4 bytes
+        for i in range(0, len(data) - 3, 4):
+            cin    = data[i] & 0x0F   # Code Index Number (mirrors lower nibble of status)
+            status = data[i + 1]
+            note   = data[i + 2]
+            vel    = data[i + 3]
+
+            msg_type = status & 0xF0
+
+            if cin == 0x09 and msg_type == 0x90 and vel > 0:
                 _handle_note_on(note)
-            elif status == 0x80 or (status == 0x90 and velocity == 0):
+            elif cin in (0x08, 0x09) and (msg_type == 0x80 or
+                                           (msg_type == 0x90 and vel == 0)):
                 _handle_note_off(note)
-        else:
-            time.sleep(0.001)
 
 
 def _handle_note_on(note):
