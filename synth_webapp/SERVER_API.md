@@ -1,0 +1,86 @@
+# Takuan Synth UI - Server & API Documentation
+
+This document describes the message protocol and implementation details for the web-based Synthesizer Control Panel (`server.py`).
+
+## Overview
+
+The web application runs on a lightweight Flask backend serving the HTML/JS frontend. Its primary role is to serve static assets (including raw `.wav` files), handle dynamic endpoint requests (like listing wavetables), and receive real-time parameter changes from the browser interface to forward to the underlying hardware synthesizer components (e.g., PYNQ-Z2 FPGA via AXI register mappings).
+
+## Server Endpoints
+
+### `GET /`
+Serves the main `index.html` file, instantiating the graphical interface.
+
+### `GET /api/wavetables`
+Scans the local `wav/` directory and returns a JSON array containing the filenames of all available `.wav` waveform files. This enables the frontend to dynamically populate the wavetable selection dropdowns.
+
+### `GET /wav/<filename>`
+Serves raw binary `.wav` files directly to the frontend. Used by the Javascript parser to download the raw waveform samples and render the custom canvas visualizers isolated from standard AudioContext resampling rules.
+
+### `GET /webaudio-controls/<filename>`
+Serves the specialized WebComponents scripts and sprite images used for the graphical `<webaudio-knob>` and `<webaudio-slider>` interfaces.
+
+## Hardware Integration Endpoint
+
+### `POST /api/control`
+
+This is the core communication channel between the browser UI and the backend synthesizer engine. Every parameter change made by the user transmits an asynchronous JSON payload to this endpoint.
+
+#### Request Format
+
+```json
+{
+    "param": "string (The ID of the UI element modified)",
+    "value": "string/float/integer (The new value)"
+}
+```
+
+#### Implementing Hardware Calls
+
+Currently, the endpoint simply intercepts the payloads and prints them to the terminal console:
+```python
+print(f"Synth Control Updated | Param: {param} | Value: {value}")
+```
+
+> [!IMPORTANT]
+> **Switch Value Inversion Rule**: For UI aesthetic reasons (to preserve genuine sprite drop-shadows), all toggle switches (`webaudio-switch`) strictly transmit `0` for the UP position and `1` for the DOWN position. Since UP is intuitively "ON", you must treat an incoming value of `0` as `ON` / `HIGH` and `1` as `OFF` / `LOW` in your firmware translations.
+
+To wire this strictly to TAKUAN, you will substitute this logging step with a conditional structure translating the `param` strings into memory-mapped AXI hardware writes.
+
+### Dictionary of Frontend Parameter Messages (`param`)
+
+#### **Envelopes (ADSR)**
+There are 8 sets of Envelopes. Messages arrive formatted as `env_<1-8>_<a/d/s/r>`.
+- **Attack** (`env_X_a`): `0` to `1000` (ms)
+- **Decay** (`env_X_d`): `0` to `1000` (ms)
+- **Sustain** (`env_X_s`): `0.00` to `1.00` (float)
+- **Release** (`env_X_r`): `0` to `1000` (ms)
+
+#### **Low Frequency Oscillators (LFOs)**
+There are 4 LFOs.
+- **Speed** (`lfo_<1-4>_speed`): `0` to `127`
+- **Shape** (`lfo_<1-4>_shape`): `flat`, `sine`, `sine_bi`, `triangle`, `ramp_up`, `ramp_down`, `square`
+
+#### **Wavetable 1 Control**
+- **Wavetable Frame Position** (`wt_pos`): `0` to `127`
+- **Envelope Select** (`wt_env_select`): `0` to `7`
+- **LFO Pitch Enable** (`wt_lfo_on`): `0` or `1`
+- **LFO Pitch Source** (`wt_lfo_pitch`): `0` to `3`
+- **LFO Pitch Mode (Cont/Trig)** (`wt_pitch_mode`): `0` or `1`
+- **LFO Position Enable** (`wt_lfo_pos_on`): `0` or `1`
+- **LFO Position Source** (`wt_lfo_pos`): `0` to `3`
+- **LFO Position Mode (Cont/Trig)** (`wt_pos_mode`): `0` or `1`
+- **Wave File Selected** (`wt_wave_select`): `.wav` string (e.g., `Basic Shapes.wav`)
+
+#### **Wavetable 2 Control**
+- **Envelope Select** (`wt2_env_select`): `0` to `7`
+- **LFO Pitch Enable** (`wt2_lfo_on`): `0` or `1`
+- **LFO Pitch Source** (`wt2_lfo_pitch`): `0` to `3`
+- **LFO Pitch Mode (Cont/Trig)** (`wt2_pitch_mode`): `0` or `1`
+- **Wave File Selected** (`wt2_wave_select`): `.wav` string (e.g., `Acid.wav`)
+- **WT2 Enable** (`wt2_on`): `0` or `1` (toggle dual-channel mode)
+
+---  
+*Server and JS stuff was slop-codded by AI*  
+*The rest is written by me*  
+*I ain't learning no web dev bs screw that*
