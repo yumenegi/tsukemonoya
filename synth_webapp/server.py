@@ -22,7 +22,7 @@ except ImportError:
     HW_AVAILABLE = False
     print("WARNING: pynq not available — running in stub mode (no hardware writes)")
 
-from engine import Engine, midi_to_freq, freq_to_stride, note_to_name
+from engine import Engine, midi_to_freq, freq_to_stride, note_to_name, calculate_unison_strides
 from synth_state import SynthState, LFO_SHAPES, LFO_SHAPE_NAMES, _lfo_speed_to_stride
 from voice_alloc import VoiceAllocator
 
@@ -43,6 +43,7 @@ ADAU1761_CONFIG = [
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
 engine = None       # type: Engine
+engine_lock = threading.Lock()  # Protect all AXI MMIO engine writes
 state = SynthState()
 wt1_alloc = VoiceAllocator(start_index=0, voice_count=256)
 wt2_alloc = VoiceAllocator(start_index=128, voice_count=128)
@@ -119,8 +120,9 @@ def load_wavetable_to_bram(bram, wav_path, num_slices=128, samples_per_slice=204
     odd  = (data_pairs[:, 1].astype(np.int32) & 0xFFFF).astype(np.uint32)
     words = (even << 16) | odd
 
-    for i, word in enumerate(words):
-        bram.write(i * 4, int(word))
+    with engine_lock:
+        for i, word in enumerate(words):
+            bram.write(i * 4, int(word))
 
     print(f"  Loaded {num_slices} × {samples_per_slice} samples into BRAM")
 
@@ -136,8 +138,9 @@ def load_default_wavetable(bram, num_slices=128, samples_per_slice=2048):
     odd  = (data_pairs[:, 1].astype(np.int32) & 0xFFFF).astype(np.uint32)
     words = (even << 16) | odd
 
-    for i, word in enumerate(words):
-        bram.write(i * 4, int(word))
+    with engine_lock:
+        for i, word in enumerate(words):
+            bram.write(i * 4, int(word))
 
     print(f"  Loaded default sawtooth ({num_slices} frames)")
 
@@ -239,23 +242,29 @@ def _handle_note_on(note):
     stride = freq_to_stride(freq)
 
     # WT1 voices
-    wt1_indices = wt1_alloc.allocate(note)
+    wt1_voices_needed = state.wt1_unison_voices if state.wt1_unison_on else 1
+    wt1_indices = wt1_alloc.allocate(note, voices_needed=wt1_voices_needed)
     if wt1_indices:
         wt_id = state.get_wt1_wt_id()
         env_id = state.wt1_env_select
         lfo_ctrl = state.get_lfo_ctrl_wt1()
-        for hw_idx in wt1_indices:
-            engine.write_voice(hw_idx, stride, wt_id, env_id, 1, lfo_ctrl)
+        strides = calculate_unison_strides(freq, state.wt1_unison_detune, wt1_voices_needed) if state.wt1_unison_on else [stride]
+
+        for i, hw_idx in enumerate(wt1_indices):
+            engine.write_voice(hw_idx, strides[i], wt_id, env_id, 1, lfo_ctrl)
 
     # WT2 voices (only if dual mode)
     if state.wt2_on:
-        wt2_indices = wt2_alloc.allocate(note)
+        wt2_voices_needed = state.wt2_unison_voices if state.wt2_unison_on else 1
+        wt2_indices = wt2_alloc.allocate(note, voices_needed=wt2_voices_needed)
         if wt2_indices:
             wt_id = state.get_wt2_wt_id()
             env_id = state.wt2_env_select
             lfo_ctrl = state.get_lfo_ctrl_wt2()
-            for hw_idx in wt2_indices:
-                engine.write_voice(hw_idx, stride, wt_id, env_id, 1, lfo_ctrl)
+            strides = calculate_unison_strides(freq, state.wt2_unison_detune, wt2_voices_needed) if state.wt2_unison_on else [stride]
+
+            for i, hw_idx in enumerate(wt2_indices):
+                engine.write_voice(hw_idx, strides[i], wt_id, env_id, 1, lfo_ctrl)
 
     print(f"NOTE ON: {note_to_name(note)} ({note})")
 
@@ -267,14 +276,16 @@ def _handle_note_off(note):
 
     wt1_indices = wt1_alloc.release(note)
     if wt1_indices:
-        for hw_idx in wt1_indices:
-            engine.key_off(hw_idx)
+        with engine_lock:
+            for hw_idx in wt1_indices:
+                engine.key_off(hw_idx)
 
     if state.wt2_on:
         wt2_indices = wt2_alloc.release(note)
         if wt2_indices:
-            for hw_idx in wt2_indices:
-                engine.key_off(hw_idx)
+            with engine_lock:
+                for hw_idx in wt2_indices:
+                    engine.key_off(hw_idx)
 
     print(f"NOTE OFF: {note_to_name(note)} ({note})")
 
@@ -297,7 +308,8 @@ def _rewrite_lfo(lfo_idx):
     """Rewrite LFO shape to hardware with current amplitude scaling."""
     if engine:
         scaled = state.get_scaled_lfo_shape(lfo_idx)
-        engine.write_lfo_shape(lfo_idx, scaled)
+        with engine_lock:
+            engine.write_lfo_shape(lfo_idx, scaled)
 
 
 def dispatch_control(param, value):
@@ -313,7 +325,8 @@ def dispatch_control(param, value):
             state.update_envelope(env_idx, adsr_param, value)
             if engine:
                 adsr1, adsr2 = state.compute_adsr(env_idx)
-                engine.write_adsr(env_idx, adsr1, adsr2)
+                with engine_lock:
+                    engine.write_adsr(env_idx, adsr1, adsr2)
         return
 
     # --- LFO Speed ---
@@ -323,7 +336,9 @@ def dispatch_control(param, value):
         if 0 <= lfo_idx < 4:
             state.update_lfo_speed(lfo_idx, value)
             if engine:
-                engine.write_lfo_stride(lfo_idx, _lfo_speed_to_stride(int(float(value))))
+                stride = _lfo_speed_to_stride(float(value))
+                with engine_lock:
+                    engine.write_lfo_stride(lfo_idx, stride)
         return
 
     # --- LFO Shape ---
@@ -351,16 +366,18 @@ def dispatch_control(param, value):
         # Update wt_id for all active WT1 voices
         if engine:
             wt_id = state.get_wt1_wt_id()
-            for hw_idx in wt1_alloc.get_all_active_indices():
-                engine.write_wt_id(hw_idx, wt_id)
+            with engine_lock:
+                for hw_idx in wt1_alloc.get_all_active_indices():
+                    engine.write_wt_id(hw_idx, wt_id)
         return
 
     if param == 'wt_env_select':
         with state.lock:
             state.wt1_env_select = int(float(value))
         if engine:
-            for hw_idx in wt1_alloc.get_all_active_indices():
-                engine.write_envelope_id(hw_idx, state.wt1_env_select)
+            with engine_lock:
+                for hw_idx in wt1_alloc.get_all_active_indices():
+                    engine.write_envelope_id(hw_idx, state.wt1_env_select)
         return
 
     if param == 'wt_lfo_on':
@@ -403,6 +420,21 @@ def dispatch_control(param, value):
         _load_wt_file(str(value), is_wt2=False)
         return
 
+    if param == 'wt_unison_on':
+        with state.lock:
+            state.wt1_unison_on = _invert_switch(value)
+        return
+
+    if param == 'wt_unison_voices':
+        with state.lock:
+            state.wt1_unison_voices = int(float(value))
+        return
+
+    if param == 'wt_unison_detune':
+        with state.lock:
+            state.wt1_unison_detune = int(float(value))
+        return
+
     # --- WT2 Controls ---
     if param == 'wt2_on':
         new_state = _invert_switch(value)
@@ -413,8 +445,9 @@ def dispatch_control(param, value):
         with state.lock:
             state.wt2_env_select = int(float(value))
         if engine and state.wt2_on:
-            for hw_idx in wt2_alloc.get_all_active_indices():
-                engine.write_envelope_id(hw_idx, state.wt2_env_select)
+            with engine_lock:
+                for hw_idx in wt2_alloc.get_all_active_indices():
+                    engine.write_envelope_id(hw_idx, state.wt2_env_select)
         return
 
     if param == 'wt2_lfo_on':
@@ -439,6 +472,21 @@ def dispatch_control(param, value):
         _load_wt_file(str(value), is_wt2=True)
         return
 
+    if param == 'wt2_unison_on':
+        with state.lock:
+            state.wt2_unison_on = _invert_switch(value)
+        return
+
+    if param == 'wt2_unison_voices':
+        with state.lock:
+            state.wt2_unison_voices = int(float(value))
+        return
+
+    if param == 'wt2_unison_detune':
+        with state.lock:
+            state.wt2_unison_detune = int(float(value))
+        return
+
     print(f"  Unhandled param: {param} = {value}")
 
 
@@ -446,16 +494,18 @@ def _update_wt1_lfo_ctrl():
     """Recompute and write LFO ctrl byte for all active WT1 voices."""
     if engine:
         ctrl = state.get_lfo_ctrl_wt1()
-        for hw_idx in wt1_alloc.get_all_active_indices():
-            engine.write_lfo_ctrl(hw_idx, ctrl)
+        with engine_lock:
+            for hw_idx in wt1_alloc.get_all_active_indices():
+                engine.write_lfo_ctrl(hw_idx, ctrl)
 
 
 def _update_wt2_lfo_ctrl():
     """Recompute and write LFO ctrl byte for all active WT2 voices."""
     if engine and state.wt2_on:
         ctrl = state.get_lfo_ctrl_wt2()
-        for hw_idx in wt2_alloc.get_all_active_indices():
-            engine.write_lfo_ctrl(hw_idx, ctrl)
+        with engine_lock:
+            for hw_idx in wt2_alloc.get_all_active_indices():
+                engine.write_lfo_ctrl(hw_idx, ctrl)
 
 
 def _toggle_wt2(enabled):
@@ -472,10 +522,11 @@ def _toggle_wt2(enabled):
     if enabled and not was_on:
         # Switch to dual mode: WT1 gets 128 voices (0-127), WT2 gets 128 voices (128-255)
         # Release all current voices first
-        for hw_idx in wt1_alloc.release_all():
-            engine.key_off(hw_idx)
-        for hw_idx in wt2_alloc.release_all():
-            engine.key_off(hw_idx)
+        with engine_lock:
+            for hw_idx in wt1_alloc.release_all():
+                engine.key_off(hw_idx)
+            for hw_idx in wt2_alloc.release_all():
+                engine.key_off(hw_idx)
 
         wt1_alloc.resize(start_index=0, voice_count=128)
         wt2_alloc.resize(start_index=128, voice_count=128)
@@ -483,10 +534,11 @@ def _toggle_wt2(enabled):
 
     elif not enabled and was_on:
         # Switch to single mode: WT1 gets all 256 voices
-        for hw_idx in wt1_alloc.release_all():
-            engine.key_off(hw_idx)
-        for hw_idx in wt2_alloc.release_all():
-            engine.key_off(hw_idx)
+        with engine_lock:
+            for hw_idx in wt1_alloc.release_all():
+                engine.key_off(hw_idx)
+            for hw_idx in wt2_alloc.release_all():
+                engine.key_off(hw_idx)
 
         wt1_alloc.resize(start_index=0, voice_count=256)
         print("MODE: Single channel (WT1: 256 voices)")

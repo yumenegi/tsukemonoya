@@ -91,6 +91,10 @@ class SynthState:
         self.wt1_pos_lfo_idx = 0    # 0-3
         self.wt1_pos_trig = False
         self.wt1_wave_file = None
+        
+        self.wt1_unison_on = False
+        self.wt1_unison_voices = 3
+        self.wt1_unison_detune = 30
 
         # --- WT2 config ---
         self.wt2_on = False        # derived from wt2_on switch (inverted: 0=on)
@@ -99,6 +103,10 @@ class SynthState:
         self.wt2_pitch_lfo_idx = 0
         self.wt2_pitch_trig = False
         self.wt2_wave_file = None
+        
+        self.wt2_unison_on = False
+        self.wt2_unison_voices = 3
+        self.wt2_unison_detune = 30
 
     # -------------------------------------------------------------------------
     # Computed hardware values
