@@ -150,7 +150,7 @@ def init_hardware():
     global engine, bram0, bram1
 
     print("Loading overlay...")
-    overlay = pynq.Overlay("/home/xilinx/hw/kai_san/takuan.bit")
+    overlay = pynq.Overlay("/home/xilinx/hw/kai_yon/takuan.bit")
 
     print("Initializing ADAU1761 codec...")
     init_codec(overlay)
